@@ -53,8 +53,11 @@ module DockerCookbook
     property :force, Boolean, desired_state: false
     property :host, [String, nil], default: lazy { default_host }, desired_state: false
     property :hostname, String
+    property :ip, String
+    property :ip6, String
     property :ipc_mode, String, default: ''
     property :labels, [String, Array, Hash], default: {}, coerce: proc { |v| coerce_labels(v) }
+    property :link_local_ips, [String, UnorderedArrayType], default: {}, coerce: proc { |v| coerce_link_local_ips(v) }
     property :links, UnorderedArrayType, coerce: proc { |v| coerce_links(v) }
     property :log_driver, %w( json-file syslog journald gelf fluentd awslogs splunk none ), default: 'json-file', desired_state: false
     property :log_opts, [Hash, nil], coerce: proc { |v| coerce_log_opts(v) }, desired_state: false
@@ -110,6 +113,7 @@ module DockerCookbook
     alias volume_from volumes_from
     alias destination outfile
     alias workdir working_dir
+    alias link_local_ip link_local_ips
 
     # ~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
     # Begin classic Chef "provider" section
@@ -142,6 +146,15 @@ module DockerCookbook
       restart_policy container.info['HostConfig']['RestartPolicy']['Name']
       restart_maximum_retry_count container.info['HostConfig']['RestartPolicy']['MaximumRetryCount']
       volumes_binds container.info['HostConfig']['Binds']
+
+      if container.info['NetworkingConfig'] && container.info['NetworkingConfig']['EndpointsConfig']
+        nwcfg = container.info['NetworkingConfig']['EndpointsConfig'][network_mode]
+        if nwcfg && nwcfg['IPAMConfig']
+          ip nwcfg['IPAMConfig']['IPv4Address']
+          ip6 nwcfg['IPAMConfig']['IPv6Address']
+          link_local_ips['IPAMConfig']['LinkLocalIPs']
+        end
+      end
     end
 
     #########
@@ -283,6 +296,21 @@ module DockerCookbook
               'VolumesFrom'     => volumes_from
             }
           }
+
+          unless ['default', 'bridge', 'host', 'none'].include?(network_mode)
+            config['NetworkingConfig'] = {
+              'EndpointsConfig' => {
+                network_mode => {
+                  'IPAMConfig' => {
+                    'IPv4Address' => ip,
+                    'IPv6Address' => ip6,
+                    'LinkLocalIPs' => link_local_ips
+                  }
+                }
+              }
+            }
+          end
+
           Docker::Container.create(config, connection)
         end
       end

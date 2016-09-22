@@ -1,6 +1,15 @@
 module DockerCookbook
   module DockerHelpers
     module Container
+      def coerce_link_local_ips(v)
+        case v
+        when DockerBase::UnorderedArray, nil
+          v
+        else
+          DockerBase::UnorderedArray.new(Array(v))
+        end
+      end
+
       def coerce_links(v)
         case v
         when DockerBase::UnorderedArray, nil
@@ -59,7 +68,7 @@ module DockerCookbook
 
       def default_network_mode
         case api_version
-        when '1.19'
+        when proc { |n| n.to_f >= 1.19 }
           'bridge'
         when proc { |n| n.to_f < 1.19 }
           ''

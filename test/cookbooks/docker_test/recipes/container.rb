@@ -1010,3 +1010,22 @@ docker_container 'ro_rootfs' do
   ro_rootfs true
   action :run_if_missing
 end
+
+###########################
+# custom IPAM configuration
+###########################
+
+docker_network 'ipam' do
+  network '172.18.0.0/24'
+  gateway '172.18.0.1'
+  action :create
+end
+
+docker_container 'ipam' do
+  repo 'alpine'
+  tag '3.1'
+  ip '172.18.0.1'
+  link_local_ip '169.169.169.169'
+  command 'ps -ef'
+  action :run_if_missing
+end
